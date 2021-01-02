@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Resource.Api.Extensions;
+using System;
 using System.Security.Claims;
 
 namespace Resource.Api
@@ -24,19 +27,26 @@ namespace Resource.Api
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;                
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             }).AddJwtBearer(o =>
             {
-                o.Authority = "http://localhost:5000";
+                //o.Authority = "http://localhost:5000";
                 o.Audience = "resourceapi";
                 o.RequireHttpsMetadata = false;
-            });
+            }).AddMyAuthServer();
 
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("ApiReader", policy => policy.RequireClaim("scope", "api.read"));
                 options.AddPolicy("Consumer", policy => policy.RequireClaim(ClaimTypes.Role, "consumer"));
             });
+
+            services.AddDbContext<Data.ResourceContext>();
+
+            services.AddIdentity<IdentityUser<Guid>, IdentityRole<Guid>>()
+                .AddEntityFrameworkStores<Data.ResourceContext>()
+                .AddDefaultTokenProviders()
+                .AddSignInManager();
 
             services.AddMvc(options =>
             {

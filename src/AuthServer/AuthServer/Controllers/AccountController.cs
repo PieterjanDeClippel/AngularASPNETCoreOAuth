@@ -13,6 +13,9 @@ using AuthServer.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using System.Collections.Generic;
+using IdentityModel.Client;
 
 namespace AuthServer.Controllers
 {
@@ -24,14 +27,16 @@ namespace AuthServer.Controllers
         private readonly IAuthenticationSchemeProvider _schemeProvider;
         private readonly IClientStore _clientStore;
         private readonly IEventService _events;
+        private readonly IDiscoveryCache discoveryCache;
 
-        public AccountController(SignInManager<AppUser> signInManager, UserManager<AppUser> userManager, IIdentityServerInteractionService interaction, IAuthenticationSchemeProvider schemeProvider, IClientStore clientStore, IEventService events)
+        public AccountController(SignInManager<AppUser> signInManager, UserManager<AppUser> userManager, IIdentityServerInteractionService interaction, IAuthenticationSchemeProvider schemeProvider, IClientStore clientStore, IEventService events, IDiscoveryCache discoveryCache)
         {
             _userManager = userManager;
             _interaction = interaction;
             _schemeProvider = schemeProvider;
             _clientStore = clientStore;
             _events = events;
+            this.discoveryCache = discoveryCache;
             _signInManager = signInManager;
         }
 
@@ -39,10 +44,10 @@ namespace AuthServer.Controllers
         /// Entry point into the login workflow
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> Login(string returnUrl)
+        public async Task<IActionResult> Login([FromQuery(Name = "redirect_uri")] string returnUrl, [FromQuery] string state)
         {
             // build a model so we know what to show on the login page
-            var vm = await BuildLoginViewModelAsync(returnUrl);
+            var vm = await BuildLoginViewModelAsync(returnUrl, state);
 
             if (vm.IsExternalLoginOnly)
             {
@@ -126,14 +131,37 @@ namespace AuthServer.Controllers
                         return Redirect(model.ReturnUrl);
                     }
 
+                    var validUrlsForClient = new string[]
+                    {
+                        //"https://localhost:44344/api/Profile/login/callback",
+                        "https://localhost:44344/signin-my-auth-server",
+                        "https://localhost:44344/signin-my-auth-server/"
+                    };
+
+                    // Append query-params to redirect-url
+                    var redirectUrl = QueryHelpers.AddQueryString(model.ReturnUrl, new Dictionary<string, string>
+                    {
+                        { "state", model.State },
+                        { "code", Guid.NewGuid().ToString() }
+                    });
+                    //var uriBuilder = new UriBuilder(model.ReturnUrl);
+                    //var query = System.Web.HttpUtility.ParseQueryString(uriBuilder.Query);
+                    ////query["state"] = ;
+                    //uriBuilder.Query = query.ToString();
+                    //var redirectUrl = uriBuilder.ToString();
+
                     // request for a local page
                     if (Url.IsLocalUrl(model.ReturnUrl))
                     {
-                        return Redirect(model.ReturnUrl);
+                        return Redirect(redirectUrl);
                     }
                     else if (string.IsNullOrEmpty(model.ReturnUrl))
                     {
                         return Redirect("~/");
+                    }
+                    else if (validUrlsForClient.Contains(model.ReturnUrl))
+                    {
+                        return Redirect(redirectUrl);
                     }
                     else
                     {
@@ -185,10 +213,43 @@ namespace AuthServer.Controllers
             return Redirect(context.PostLogoutRedirectUri);
         }
 
+        [HttpPost("Account/Token")]
+        public async Task<ActionResult<TokenResponse>> Token(
+            [FromForm(Name = "grant_type")] string grantType,
+            [FromForm(Name = "client_id")] string clientId,
+            [FromForm(Name = "client_secret")] string clientSecret,
+            [FromForm(Name = "redirect_uri")] string redirectUri,
+            [FromForm(Name = "code")] string code)
+        {
+            //var endPointDiscovery = await discoveryCache.GetAsync();
+            using (var httpClient = new System.Net.Http.HttpClient())
+            {
+                var discovery = await httpClient.GetDiscoveryDocumentAsync("https://localhost:44348");
+                var tokenResponse = await httpClient.RequestClientCredentialsTokenAsync(new ClientCredentialsTokenRequest
+                {
+                    Address = discovery.TokenEndpoint,
+                    //Address = "https://localhost:44348",
+                    ClientId = clientId,
+                    ClientSecret = clientSecret,
+                    GrantType = "authorization_code",
+                    Scope = "email"
+                });
+
+                return Ok(tokenResponse);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Me()
+        {
+            return Ok();
+        }
+
+
         /*****************************************/
         /* helper APIs for the AccountController */
         /*****************************************/
-        private async Task<LoginViewModel> BuildLoginViewModelAsync(string returnUrl)
+        private async Task<LoginViewModel> BuildLoginViewModelAsync(string returnUrl, string state)
         {
             var context = await _interaction.GetAuthorizationContextAsync(returnUrl);
             if (context?.IdP != null)
@@ -199,6 +260,7 @@ namespace AuthServer.Controllers
                 var vm = new LoginViewModel
                 {
                     EnableLocalLogin = local,
+                    State = state,
                     ReturnUrl = returnUrl,
                     Username = context?.LoginHint,
                 };
@@ -213,8 +275,8 @@ namespace AuthServer.Controllers
 
             var schemes = await _schemeProvider.GetAllSchemesAsync();
 
-            var providers = schemes.Where(x => x.DisplayName != null || (x.Name.Equals(AccountOptions.WindowsAuthenticationSchemeName, StringComparison.OrdinalIgnoreCase))
-                )
+            var providers = schemes
+                .Where(x => x.DisplayName != null || (x.Name.Equals(AccountOptions.WindowsAuthenticationSchemeName, StringComparison.OrdinalIgnoreCase)))
                 .Select(x => new ExternalProvider
                 {
                     DisplayName = x.DisplayName,
@@ -242,13 +304,14 @@ namespace AuthServer.Controllers
                 EnableLocalLogin = allowLocal && AccountOptions.AllowLocalLogin,
                 ReturnUrl = returnUrl,
                 Username = context?.LoginHint,
-                ExternalProviders = providers.ToArray()
+                ExternalProviders = providers.ToArray(),
+                State = state
             };
         }
 
         private async Task<LoginViewModel> BuildLoginViewModelAsync(LoginInputModel model)
         {
-            var vm = await BuildLoginViewModelAsync(model.ReturnUrl);
+            var vm = await BuildLoginViewModelAsync(model.ReturnUrl, model.State);
             vm.Username = model.Username;
             vm.RememberLogin = model.RememberLogin;
             return vm;

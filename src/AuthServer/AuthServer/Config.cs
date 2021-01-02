@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using IdentityServer4.Models;
 
 namespace AuthServer
@@ -9,9 +10,9 @@ namespace AuthServer
         {
             return new List<IdentityResource>
             {
-                new IdentityResources.OpenId(),
-                new IdentityResources.Email(),
-                new IdentityResources.Profile(),
+                //new IdentityResources.OpenId(),
+                //new IdentityResources.Email(),
+                //new IdentityResources.Profile(),
             };
         }
 
@@ -19,9 +20,20 @@ namespace AuthServer
         {
             return new List<ApiResource>
             {
-                new ApiResource("resourceapi", "Resource API")
+                new ApiResource
                 {
-                    Scopes = {new Scope("api.read")}
+                    Name = "resourceapi",
+                    DisplayName = "Resource API",
+                    ApiSecrets = new List<Secret>
+                    {
+                        new Secret("tada".Sha256())
+                    },
+                    Scopes = {
+                        new Scope("openid"),
+                        new Scope("profile"),
+                        new Scope("email"),
+                        new Scope("api.read"),
+                    }
                 }
             };
         }
@@ -32,13 +44,22 @@ namespace AuthServer
             {
                 new Client {
                     RequireConsent = false,
-                    ClientId = "angular_spa",
+                    ClientId = "CarfacPlusClient",
+                    ClientSecrets = new HashSet<Secret>
+                    {
+                        new Secret("tada".Sha256())
+                    },
                     ClientName = "Angular SPA",
-                    AllowedGrantTypes = GrantTypes.Implicit,
+                    //AllowedGrantTypes = new List<ICollection<string>>
+                    //{
+                    //    GrantTypes.Implicit,
+                    //    GrantTypes.Code,
+                    //}.SelectMany(g => g).ToList(),
+                    AllowedGrantTypes = GrantTypes.ClientCredentials,
                     AllowedScopes = { "openid", "profile", "email", "api.read" },
-                    RedirectUris = {"http://localhost:4200/auth-callback"},
+                    RedirectUris = {"https://localhost:44344/signin-my-auth-server"},
                     PostLogoutRedirectUris = {"http://localhost:4200/"},
-                    AllowedCorsOrigins = {"http://localhost:4200"},
+                    AllowedCorsOrigins = {"https://localhost:44344", "https://localhost:44348"},
                     AllowAccessTokensViaBrowser = true,
                     AccessTokenLifetime = 3600
                 }

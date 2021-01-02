@@ -32,7 +32,7 @@ namespace AuthServer
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("Default")));
+            services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("Default"), o => o.MigrationsAssembly("AuthServer.Infrastructure")));
 
             services.AddIdentity<AppUser, IdentityRole>()
                 .AddEntityFrameworkStores<AppIdentityDbContext>()
@@ -73,7 +73,14 @@ namespace AuthServer
             services.AddMvc(options =>
             {
                 options.EnableEndpointRouting = false;
-            }).SetCompatibilityVersion(CompatibilityVersion.Latest);
+            }).SetCompatibilityVersion(CompatibilityVersion.Latest)
+            .AddNewtonsoftJson();
+
+
+            services.AddSingleton<IdentityModel.Client.IDiscoveryCache>((ser) =>
+            {
+                return new IdentityModel.Client.DiscoveryCache("https://localhost:44348", null);
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
