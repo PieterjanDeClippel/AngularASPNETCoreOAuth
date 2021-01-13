@@ -24,20 +24,20 @@ namespace AuthServer.Controllers
         private readonly IIdentityServerInteractionService _interaction;
         private readonly IClientStore _clientStore;
         private readonly IResourceStore _resourceStore;
-        private readonly IEventService _events;
+        //private readonly IEventService _events;
         private readonly ILogger<ConsentController> _logger;
 
         public ConsentController(
             IIdentityServerInteractionService interaction,
             IClientStore clientStore,
             IResourceStore resourceStore,
-            IEventService events,
+            //IEventService events,
             ILogger<ConsentController> logger)
         {
             _interaction = interaction;
             _clientStore = clientStore;
             _resourceStore = resourceStore;
-            _events = events;
+            //_events = events;
             _logger = logger;
         }
 
@@ -111,7 +111,7 @@ namespace AuthServer.Controllers
                 grantedConsent = ConsentResponse.Denied;
 
                 // emit event
-                await _events.RaiseAsync(new ConsentDeniedEvent(User.GetSubjectId(), request.ClientId, request.ScopesRequested));
+                //await _events.RaiseAsync(new ConsentDeniedEvent(User.GetSubjectId(), request.ClientId, request.ScopesRequested));
             }
             // user clicked 'yes' - validate the data
             else if (model?.Button == "yes")
@@ -132,7 +132,7 @@ namespace AuthServer.Controllers
                     };
 
                     // emit event
-                    await _events.RaiseAsync(new ConsentGrantedEvent(User.GetSubjectId(), request.ClientId, request.ScopesRequested, grantedConsent.ScopesConsented, grantedConsent.RememberConsent));
+                    //await _events.RaiseAsync(new ConsentGrantedEvent(User.GetSubjectId(), request.ClientId, request.ScopesRequested, grantedConsent.ScopesConsented, grantedConsent.RememberConsent));
                 }
                 else
                 {

@@ -1,7 +1,9 @@
 ﻿using AuthServer.Extensions;
 using AuthServer.Infrastructure.Data.Identity;
 using AuthServer.Infrastructure.Services;
+using IdentityServer4.AccessTokenValidation;
 using IdentityServer4.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -14,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using System;
 using System.Net;
  
 
@@ -33,6 +36,29 @@ namespace AuthServer
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(Configuration.GetConnectionString("Default"), o => o.MigrationsAssembly("AuthServer.Infrastructure")));
+
+            //services.AddAuthentication(IdentityServerAuthenticationDefaults.AuthenticationScheme)
+            //services.AddAuthentication("idsrv")
+            //    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+            //    {
+            //        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            //        {
+            //            ValidateActor = false,
+            //            ValidateAudience = false,
+            //            ValidateIssuer = false,
+            //            ValidateIssuerSigningKey = false,
+            //            ValidateLifetime = false,
+            //            ValidateTokenReplay = false,
+            //        };
+            //    });
+
+            services.AddAuthentication(IdentityServerAuthenticationDefaults.AuthenticationScheme)
+                .AddIdentityServerAuthentication(options =>
+                {
+                    options.Authority = "https://localhost:44348";
+                    options.RequireHttpsMetadata = false;
+                    options.ApiName = "resourceapi";
+                });
 
             services.AddIdentity<AppUser, IdentityRole>()
                 .AddEntityFrameworkStores<AppIdentityDbContext>()
@@ -76,11 +102,42 @@ namespace AuthServer
             }).SetCompatibilityVersion(CompatibilityVersion.Latest)
             .AddNewtonsoftJson();
 
-
             services.AddSingleton<IdentityModel.Client.IDiscoveryCache>((ser) =>
             {
                 return new IdentityModel.Client.DiscoveryCache("https://localhost:44348", null);
             });
+
+            //services
+            //    .Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            //    {
+            //        options.Audience = Configuration["JwtIssuerOptions:Audience"];
+            //        options.ClaimsIssuer = Configuration["JwtIssuerOptions:Issuer"];
+            //        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            //        {
+            //            ValidateAudience = true,
+            //            ValidAudience = Configuration["JwtIssuerOptions:Audience"],
+            //            ValidateIssuer = true,
+            //            ValidIssuer = Configuration["JwtIssuerOptions:Issuer"],
+            //            ValidateIssuerSigningKey = true,
+            //            IssuerSigningKey = new Func<Microsoft.IdentityModel.Tokens.SymmetricSecurityKey>(() =>
+            //            {
+            //                var key = Configuration["JwtIssuerOptions:Key"];
+            //                var bytes = System.Text.Encoding.UTF8.GetBytes(key);
+            //                var signing_key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(bytes);
+            //                return signing_key;
+            //            }).Invoke(),
+            //            ValidateLifetime = true
+            //        };
+            //        options.SaveToken = false;
+            //    })
+            //    .Configure<Models.JwtIssuerOptions>(options =>
+            //    {
+            //        options.Audience = Configuration["JwtIssuerOptions:Audience"];
+            //        options.Issuer = Configuration["JwtIssuerOptions:Issuer"];
+            //        options.Key = Configuration["JwtIssuerOptions:Key"];
+            //        options.Subject = Configuration["JwtIssuerOptions:Subject"];
+            //        options.ValidFor = Configuration.GetValue<TimeSpan>("JwtIssuerOptions:ValidFor");
+            //    });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -122,13 +179,17 @@ namespace AuthServer
             app.UseStaticFiles();
             app.UseCors("AllowAll");
             app.UseIdentityServer();
+            app.UseAuthentication();
+            app.UseRouting();
+            app.UseAuthorization();
+            app.UseEndpoints(endpoints => endpoints.MapDefaultControllerRoute());
 
-            app.UseMvc(routes =>
-            {
-                routes.MapRoute(
-                    name: "default",
-                    template: "{controller=Home}/{action=Index}/{id?}");
-            });
+            //app.UseMvc(routes =>
+            //{
+            //    routes.MapRoute(
+            //        name: "default",
+            //        template: "{controller=Home}/{action=Index}/{id?}");
+            //});
         }
     }
 }

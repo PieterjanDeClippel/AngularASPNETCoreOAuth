@@ -33,7 +33,7 @@ namespace Resource.Api.Extensions
     {
         public MyAuthServerOptions()
         {
-            CallbackPath = new Microsoft.AspNetCore.Http.PathString("/signin-my-auth-server/");
+            CallbackPath = new Microsoft.AspNetCore.Http.PathString("/signin-my-auth-server");
             AuthorizationEndpoint = MyAuthServerDefaults.AuthorizationEndpoint;
             TokenEndpoint = MyAuthServerDefaults.TokenEndpoint;
             ClientId = "CarfacPlusClient";
@@ -57,6 +57,52 @@ namespace Resource.Api.Extensions
     {
         public MyAuthServerHandler(IOptionsMonitor<MyAuthServerOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock) : base(options, logger, encoder, clock)
         {
+        }
+
+        protected override string BuildChallengeUrl(AuthenticationProperties properties, string redirectUri)
+        {
+            string v = base.BuildChallengeUrl(properties, redirectUri);
+            return v;
+        }
+
+        protected override async Task<object> CreateEventsAsync()
+        {
+            var result = await base.CreateEventsAsync();
+            return result;
+        }
+
+        protected override void GenerateCorrelationId(AuthenticationProperties properties)
+        {
+            base.GenerateCorrelationId(properties);
+        }
+
+        protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var result = await base.HandleAuthenticateAsync();
+            return result;
+        }
+
+        protected override async Task<HandleRequestResult> HandleRemoteAuthenticateAsync()
+        {
+            var result = await base.HandleRemoteAuthenticateAsync();
+            return result;
+        }
+
+        protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
+        {
+            await base.HandleChallengeAsync(properties);
+        }
+
+        protected override async Task<HandleRequestResult> HandleAccessDeniedErrorAsync(AuthenticationProperties properties)
+        {
+            var result = await base.HandleAccessDeniedErrorAsync(properties);
+            return result;
+        }
+
+        protected override async Task<OAuthTokenResponse> ExchangeCodeAsync(OAuthCodeExchangeContext context)
+        {
+            var result = await base.ExchangeCodeAsync(context);
+            return result;
         }
 
         protected override async Task<AuthenticationTicket> CreateTicketAsync(ClaimsIdentity identity, AuthenticationProperties properties, OAuthTokenResponse tokens)

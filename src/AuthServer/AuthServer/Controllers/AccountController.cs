@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Collections.Generic;
 using IdentityModel.Client;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AuthServer.Controllers
 {
@@ -26,16 +27,23 @@ namespace AuthServer.Controllers
         private readonly IIdentityServerInteractionService _interaction;
         private readonly IAuthenticationSchemeProvider _schemeProvider;
         private readonly IClientStore _clientStore;
-        private readonly IEventService _events;
+        //private readonly IEventService _events;
         private readonly IDiscoveryCache discoveryCache;
 
-        public AccountController(SignInManager<AppUser> signInManager, UserManager<AppUser> userManager, IIdentityServerInteractionService interaction, IAuthenticationSchemeProvider schemeProvider, IClientStore clientStore, IEventService events, IDiscoveryCache discoveryCache)
+        public AccountController(
+            SignInManager<AppUser> signInManager,
+            UserManager<AppUser> userManager,
+            IIdentityServerInteractionService interaction,
+            IAuthenticationSchemeProvider schemeProvider,
+            IClientStore clientStore,
+            //IEventService events,
+            IDiscoveryCache discoveryCache)
         {
             _userManager = userManager;
             _interaction = interaction;
             _schemeProvider = schemeProvider;
             _clientStore = clientStore;
-            _events = events;
+            //_events = events;
             this.discoveryCache = discoveryCache;
             _signInManager = signInManager;
         }
@@ -101,7 +109,7 @@ namespace AuthServer.Controllers
                 var user = await _userManager.FindByNameAsync(model.Username);
                 if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
                 {
-                    await _events.RaiseAsync(new UserLoginSuccessEvent(user.UserName, user.Id, user.Name));
+                    //await _events.RaiseAsync(new UserLoginSuccessEvent(user.UserName, user.Id, user.Name));
 
                     // only set explicit expiration here if user chooses "remember me". 
                     // otherwise we rely upon expiration configured in cookie middleware.
@@ -170,7 +178,7 @@ namespace AuthServer.Controllers
                     }
                 }
 
-                await _events.RaiseAsync(new UserLoginFailureEvent(model.Username, "invalid credentials"));
+                //await _events.RaiseAsync(new UserLoginFailureEvent(model.Username, "invalid credentials"));
                 ModelState.AddModelError(string.Empty, AccountOptions.InvalidCredentialsErrorMessage);
             }
 
@@ -214,7 +222,7 @@ namespace AuthServer.Controllers
         }
 
         [HttpPost("Account/Token")]
-        public async Task<ActionResult<TokenResponse>> Token(
+        public async Task<ActionResult<Models.TokenResponse>> Token(
             [FromForm(Name = "grant_type")] string grantType,
             [FromForm(Name = "client_id")] string clientId,
             [FromForm(Name = "client_secret")] string clientSecret,
@@ -225,26 +233,55 @@ namespace AuthServer.Controllers
             using (var httpClient = new System.Net.Http.HttpClient())
             {
                 var discovery = await httpClient.GetDiscoveryDocumentAsync("https://localhost:44348");
-                var tokenResponse = await httpClient.RequestClientCredentialsTokenAsync(new ClientCredentialsTokenRequest
+                var clientCredentialsTokenResponse = await httpClient.RequestClientCredentialsTokenAsync(new ClientCredentialsTokenRequest
                 {
                     Address = discovery.TokenEndpoint,
                     //Address = "https://localhost:44348",
                     ClientId = clientId,
                     ClientSecret = clientSecret,
-                    GrantType = "authorization_code",
+                    GrantType = grantType,
                     Scope = "email"
                 });
+                //var codeTokenResponse = await httpClient.RequestAuthorizationCodeTokenAsync(new AuthorizationCodeTokenRequest
+                //{
+                //    Address = discovery.TokenEndpoint,
+                //    ClientId = clientId,
+                //    ClientSecret = clientSecret,
+                //    GrantType = grantType,
+                //    Code = code,
+                //    RedirectUri = redirectUri
+                //});
+                //var tokenResponse = await httpClient.RequestTokenAsync(new TokenRequest
+                //{
+                //    Address = discovery.TokenEndpoint,
+                //    ClientId = clientId,
+                //    ClientSecret = clientSecret,
+                //    GrantType = grantType,
+                //});
 
-                return Ok(tokenResponse);
+                return Ok(new Models.TokenResponse(clientCredentialsTokenResponse));
             }
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Me()
-        {
-            return Ok();
-        }
+        //[Authorize(AuthenticationSchemes = IdentityServer4.AccessTokenValidation.IdentityServerAuthenticationDefaults.AuthenticationScheme)]
+        //[HttpGet("[controller]/Me")]
+        //public async Task<ActionResult<UserInfo>> Me()
+        //{
+        //    var user = await _userManager.GetUserAsync(User);
+        //    return Ok(user);
+        //}
 
+        [Authorize(AuthenticationSchemes = IdentityServer4.AccessTokenValidation.IdentityServerAuthenticationDefaults.AuthenticationScheme)]
+        [HttpGet("[controller]/Me")]
+        public async Task<ActionResult<UserInfo>> Me()
+        {
+            return Ok(new UserInfo
+            {
+                Id = Guid.Parse("de64d561-d1df-4770-b632-eb0c057972b6"),
+                Username = "Pieterjan",
+                Email = "pieterjandeclippel@msn.com"
+            });
+        }
 
         /*****************************************/
         /* helper APIs for the AccountController */
